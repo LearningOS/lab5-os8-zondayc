@@ -19,6 +19,7 @@ pub struct ProcessControlBlock {
 
 // LAB5 HINT: you may add data structures for deadlock detection here
 pub struct ProcessControlBlockInner {
+    pub enable_dead_lock_dect: bool,
     pub is_zombie: bool,
     pub memory_set: MemorySet,
     pub parent: Option<Weak<ProcessControlBlock>>,
@@ -28,7 +29,12 @@ pub struct ProcessControlBlockInner {
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
     pub task_res_allocator: RecycleAllocator,
     pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
+    pub mutex_available:[i32;10],
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
+    pub semaphore_available: [i32;10],
+    pub semaphore_allocation:[[i32;10];10],
+    pub semaphore_need:[[i32;10];10],
+    pub semaphore_finish:[bool;10],
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
 }
 
@@ -79,6 +85,7 @@ impl ProcessControlBlock {
             pid: pid_handle,
             inner: unsafe {
                 UPSafeCell::new(ProcessControlBlockInner {
+                    enable_dead_lock_dect:false,
                     is_zombie: false,
                     memory_set,
                     parent: None,
@@ -95,7 +102,12 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(),
+                    mutex_available:[0;10],
                     semaphore_list: Vec::new(),
+                    semaphore_allocation:[[0;10];10],
+                    semaphore_available:[0;10],
+                    semaphore_finish:[false;10],
+                    semaphore_need:[[0;10];10],
                     condvar_list: Vec::new(),
                 })
             },
@@ -189,6 +201,7 @@ impl ProcessControlBlock {
     pub fn fork(self: &Arc<Self>) -> Arc<Self> {
         let mut parent = self.inner_exclusive_access();
         assert_eq!(parent.thread_count(), 1);
+        let enable=parent.enable_dead_lock_dect;
         // clone parent's memory_set completely including trampoline/ustacks/trap_cxs
         let memory_set = MemorySet::from_existed_user(&parent.memory_set);
         // alloc a pid
@@ -207,6 +220,7 @@ impl ProcessControlBlock {
             pid,
             inner: unsafe {
                 UPSafeCell::new(ProcessControlBlockInner {
+                    enable_dead_lock_dect:enable,
                     is_zombie: false,
                     memory_set,
                     parent: Some(Arc::downgrade(self)),
@@ -216,7 +230,12 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(),
+                    mutex_available:[0;10],
                     semaphore_list: Vec::new(),
+                    semaphore_allocation:[[0;10];10],
+                    semaphore_available:[0;10],
+                    semaphore_finish:[false;10],
+                    semaphore_need:[[0;10];10],
                     condvar_list: Vec::new(),
                 })
             },
@@ -261,6 +280,7 @@ impl ProcessControlBlock {
             pid: super::pid_alloc(),
             inner: unsafe {
                 UPSafeCell::new(ProcessControlBlockInner {
+                    enable_dead_lock_dect:false,
                     is_zombie: false,
                     memory_set: memory_set,
                     parent: None,
@@ -270,7 +290,12 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(),
+                    mutex_available:[0;10],
                     semaphore_list: Vec::new(),
+                    semaphore_allocation:[[0;10];10],
+                    semaphore_available:[0;10],
+                    semaphore_finish:[false;10],
+                    semaphore_need:[[0;10];10],
                     condvar_list: Vec::new(),
                 })
             },
